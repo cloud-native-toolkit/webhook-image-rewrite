@@ -1,0 +1,12 @@
+namespace: image-rewrite
+
+resources:
+  - base/configmap.yaml
+  - base/deployment.yaml
+  - base/service.yaml
+  - mutatingwebhook.yaml
+
+images:
+  - name: image-rewrite
+    newName: docker.io/ibmgaragecloud/image-rewrite
+    newTag: 0.0.2

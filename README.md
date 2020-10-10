@@ -57,5 +57,5 @@ kubectl create ns image-rewrite
 2. Deploy resources:
 
 ```shell script
-kubectl create -f deploy/
+kubectl create -f deployment/
 ```

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-rewrite-webhook-configmap
+data:
+  rewrite-config.yaml: |
+    defaultHost: docker.io
+    imageMappings:
+      - source: docker.io
+        mirror: us.icr.io/toolkit-private/docker

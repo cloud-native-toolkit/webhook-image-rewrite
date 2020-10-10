@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-rewrite-webhook-svc
+  labels:
+    app: image-rewrite
+spec:
+  ports:
+  - port: 443
+    targetPort: 8443
+  selector:
+    app: image-rewrite
