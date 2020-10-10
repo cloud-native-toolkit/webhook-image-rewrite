@@ -6,5 +6,5 @@ data:
   rewrite-config.yaml: |
     defaultHost: docker.io
     imageMappings:
-      - source: docker.io
-        mirror: us.icr.io/toolkit-private/docker
+      - source: docker.io/bitnami
+        mirror: us.icr.io/toolkit-private/docker/bitnami
