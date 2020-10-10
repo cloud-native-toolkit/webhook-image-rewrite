@@ -128,7 +128,7 @@ func mutationRequired(ignoredList *[]string, pod *corev1.Pod, config *Config) bo
 
 	required := doesHostMatch(images, config)
 
-	glog.Infof("Mutation policy for %v/%v: required: %v", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name, required)
+	glog.Infof("Mutation policy for %v/%v: required: %v", p.ObjectMeta.Namespace, p.ObjectMeta.Name, required)
 
 	return required
 }
@@ -221,7 +221,7 @@ func createPatch(pod *corev1.Pod, rewriteConfig *Config, annotations map[string]
 
 // main mutation process
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := ar.Request
+	req := *ar.Request
 	var pod corev1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
@@ -233,11 +233,11 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	}
 
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
+		req.Kind, req.Namespace, req.Name, pod.ObjectMeta.Name, req.UID, req.Operation, req.UserInfo)
 
 	// determine whether to perform mutation
 	if !mutationRequired(&ignoredNamespaces, &pod, whsvr.rewriteConfig) {
-		glog.Infof("Skipping mutation for %s/%s due to policy check", pod.Namespace, pod.Name)
+		glog.Infof("Skipping mutation for %s/%s due to policy check", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 		}
