@@ -111,24 +111,22 @@ func loadConfig(configFile string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Check whether the target resoured need to be mutated
-func mutationRequired(ignoredList *[]string, pod *corev1.Pod, config *Config) bool {
+// Check whether the target resource needs to be mutated
+func mutationRequired(req *v1beta1.AdmissionRequest,ignoredList *[]string, pod *corev1.Pod, config *Config) bool {
 
-	p := *pod
-
-	// skip special kubernete system namespaces
+	// skip special kubernetes system namespaces
 	for _, namespace := range *ignoredList {
-		if p.ObjectMeta.Namespace == namespace {
-			glog.Infof("Skip mutation for %v for it's in special namespace:%v", p.ObjectMeta.Name, p.ObjectMeta.Namespace)
+		if req.Namespace == namespace {
+			glog.Infof("Skip mutation for %v (%v) for it's in special namespace: %v", pod.Name, pod.GenerateName, req.Namespace)
 			return false
 		}
 	}
 
-	images := mapContainerImages(&p.Spec.Containers)
+	images := mapContainerImages(&pod.Spec.Containers)
 
 	required := doesHostMatch(images, config)
 
-	glog.Infof("Mutation policy for %v/%v: required: %v", p.ObjectMeta.Namespace, p.ObjectMeta.Name, required)
+	glog.Infof("Mutation policy for %v/%v (%v) required: %v", req.Namespace, pod.Name, pod.GenerateName, required)
 
 	return required
 }
@@ -174,7 +172,7 @@ func patchImages(pod *corev1.Pod, rewriteConfig *Config) []patchOperation {
 func patchImage(containerIndex int, image *string, config *Config) patchOperation {
 	newImage := rewriteImage(image, config)
 
-	return patchOperation{Op: "Replace", Path: fmt.Sprintf("/spec/containers/%d/image", containerIndex), Value: *newImage}
+	return patchOperation{Op: "replace", Path: fmt.Sprintf("/spec/containers/%d/image", containerIndex), Value: *newImage}
 }
 
 func rewriteImage(image *string, rewriteConfig *Config) *string {
@@ -221,7 +219,7 @@ func createPatch(pod *corev1.Pod, rewriteConfig *Config, annotations map[string]
 
 // main mutation process
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	req := *ar.Request
+	req := ar.Request
 	var pod corev1.Pod
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
@@ -233,11 +231,11 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	}
 
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, pod.ObjectMeta.Name, req.UID, req.Operation, req.UserInfo)
+		req.Kind, req.Namespace, req.Name, pod.GenerateName, req.UID, req.Operation, req.UserInfo)
 
 	// determine whether to perform mutation
-	if !mutationRequired(&ignoredNamespaces, &pod, whsvr.rewriteConfig) {
-		glog.Infof("Skipping mutation for %s/%s due to policy check", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	if !mutationRequired(req, &ignoredNamespaces, &pod, whsvr.rewriteConfig) {
+		glog.Infof("Skipping mutation for %s/%s (%s) due to policy check", req.Namespace, pod.Name, pod.GenerateName)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 		}
