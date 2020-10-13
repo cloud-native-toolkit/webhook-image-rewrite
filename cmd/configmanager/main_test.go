@@ -8,17 +8,18 @@ import (
 )
 
 func buildConfigManager() ConfigManager {
-	imageMappings := make([]model.ImageMapping, 0)
+	imageMappings := []model.ImageMapping{
+		model.ImageMapping{Source: "source.co", Mirror: "mirror.co"},
+	}
+	ignoredNamespaces := []string{"ns1", "ns2"}
 
-	imageMappings = append(imageMappings, model.ImageMapping{Source: "source.co", Mirror: "mirror.co"})
 	config := model.Config{
 		DefaultHost: "docker.io",
 		ImageMappings: imageMappings,
+		IgnoredNamespaces: ignoredNamespaces,
 	}
 
-	ignoredNamespaces := []string{"ns1", "ns2"}
-
-	return ConfigManager{Config: &config, IgnoredNamespaces: ignoredNamespaces}
+	return ConfigManager{Config: &config}
 }
 
 func buildPod(images ...string) *corev1.Pod {

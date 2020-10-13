@@ -1,9 +1,13 @@
 package model
 
-import "sort"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sort"
+)
 
 type Config struct {
 	DefaultHost string `yaml:"defaultHost"`
+	IgnoredNamespaces []string `yaml:"ignoredNamespaces"`
 	ImageMappings []ImageMapping `yaml:"imageMappings"`
 }
 
@@ -14,6 +18,13 @@ func(c *Config) fill_defaults(){
 	// if no values present
 	if c.DefaultHost == "" {
 		c.DefaultHost = "docker.io"
+	}
+
+	if len(c.IgnoredNamespaces) == 0 {
+		c.IgnoredNamespaces = []string{
+			metav1.NamespaceSystem,
+			metav1.NamespacePublic,
+		}
 	}
 
 	c.ImageMappings = sortImageMappings(c.ImageMappings)

@@ -28,12 +28,6 @@ var (
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
 )
 
-var ignoredNamespaces = []string{
-	metav1.NamespaceSystem,
-	metav1.NamespacePublic,
-	"image-rewrite",
-}
-
 const (
 	admissionWebhookAnnotationInjectKey = "image-rewrite.toolkit.ibm/inject"
 	admissionWebhookAnnotationStatusKey = "image-rewrite.toolkit.ibm/status"
@@ -98,7 +92,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 
-	cm := configmanager.ConfigManager{Config: whsvr.rewriteConfig, IgnoredNamespaces: ignoredNamespaces}
+	cm := configmanager.ConfigManager{Config: whsvr.rewriteConfig}
 
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, pod.GenerateName, req.UID, req.Operation, req.UserInfo)

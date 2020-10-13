@@ -19,7 +19,6 @@ type patchOperation struct {
 
 type ConfigManager struct {
 	Config *model.Config
-	IgnoredNamespaces []string
 }
 
 func (c ConfigManager) MutationRequired(namespace string, pod *corev1.Pod) bool {
@@ -27,7 +26,7 @@ func (c ConfigManager) MutationRequired(namespace string, pod *corev1.Pod) bool 
 		return value == namespace
 	}
 
-	if util.Any(c.IgnoredNamespaces, matchesCurrentNamespace) {
+	if util.Any(c.Config.IgnoredNamespaces, matchesCurrentNamespace) {
 		glog.Infof("Skip mutation for %v (%v) for it's in special namespace: %v", pod.Name, pod.GenerateName, namespace)
 		return false
 	}
