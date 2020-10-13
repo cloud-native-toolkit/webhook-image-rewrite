@@ -26,6 +26,21 @@ admissionregistration.k8s.io/v1beta1
 
 ## Build
 
+**Note:** The following commands use the IMAGE_REPO and IMAGE_TAG variables defined in the Makefile. These can be overridden 
+at build time by either setting an environment variable in the shell or setting the value in the command. E.g.
+
+```shell script
+export IMAGE_TAG=0.1.0
+export IMAGE_REPO=docker.io/mynamespace
+make build-image push-image
+``` 
+
+- OR -
+
+```shell script
+IMAGE_TAG=0.1.0 IMAGE_REPO=docker.io/mynamespace make build-image push-image
+``` 
+
 1. Build binary
 
 ```shell script
@@ -46,6 +61,27 @@ make push-image
 
 > Note: log into the docker registry before pushing the image.
 
+## Setup the CA bundle and the deployment
+
+**Note:** The following command uses the IMAGE_REPO and IMAGE_TAG variables defined in the Makefile. These can be overridden 
+at build time by either setting an environment variable in the shell or setting the value in the command. E.g.
+
+```shell script
+export IMAGE_TAG=0.1.0
+export IMAGE_REPO=docker.io/mynamespace
+make build-image push-image
+``` 
+
+- OR -
+
+```shell script
+IMAGE_TAG=0.1.0 IMAGE_REPO=docker.io/mynamespace make build-image push-image
+``` 
+
+```shell script
+make setup
+```
+
 ## Deploy
 
 1. Create namespace `image-rewrite` in which the image rewrite webhook is deployed:
@@ -57,5 +93,5 @@ kubectl create ns image-rewrite
 2. Deploy resources:
 
 ```shell script
-kubectl create -f deployment/
+make deploy
 ```
