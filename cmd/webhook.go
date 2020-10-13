@@ -4,12 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"strings"
-
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
+	"github.com/ibm-garage-cloud/webhook-image-rewrite/cmd/configmanager"
+	"github.com/ibm-garage-cloud/webhook-image-rewrite/cmd/model"
+	"io/ioutil"
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/kubernetes/pkg/apis/core/v1"
+	"net/http"
 )
 
 var (
@@ -40,7 +40,7 @@ const (
 )
 
 type WebhookServer struct {
-	rewriteConfig *Config
+	rewriteConfig *model.Config
 	server        *http.Server
 }
 
@@ -50,32 +50,6 @@ type WhSvrParameters struct {
 	certFile       string // path to the x509 certificate for https
 	keyFile        string // path to the x509 private key matching `CertFile`
 	rewriteCfgFile string // path to sidecar injector configuration file
-}
-
-type Config struct {
-	DefaultHost string `yaml:"defaultHost"`
-	ImageMappings []ImageMapping `yaml:"imageMappings"`
-}
-
-// constructor function
-func(c *Config) fill_defaults(){
-
-	// setting default values
-	// if no values present
-	if c.DefaultHost == "" {
-		c.DefaultHost = "docker.io"
-	}
-}
-
-type ImageMapping struct {
-	Source string `yaml:"source"`
-	Mirror  string `yaml:"mirror"`
-}
-
-type patchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
 }
 
 func init() {
@@ -96,125 +70,19 @@ func applyDefaultsWorkaround(containers []corev1.Container, volumes []corev1.Vol
 	})
 }
 
-func loadConfig(configFile string) (*Config, error) {
+func loadConfig(configFile string) (*model.Config, error) {
 	data, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
 	glog.Infof("New configuration: sha256sum %x", sha256.Sum256(data))
 
-	var cfg Config
+	var cfg model.Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
-}
-
-// Check whether the target resource needs to be mutated
-func mutationRequired(req *v1beta1.AdmissionRequest,ignoredList *[]string, pod *corev1.Pod, config *Config) bool {
-
-	// skip special kubernetes system namespaces
-	for _, namespace := range *ignoredList {
-		if req.Namespace == namespace {
-			glog.Infof("Skip mutation for %v (%v) for it's in special namespace: %v", pod.Name, pod.GenerateName, req.Namespace)
-			return false
-		}
-	}
-
-	images := mapContainerImages(&pod.Spec.Containers)
-
-	required := doesHostMatch(images, config)
-
-	glog.Infof("Mutation policy for %v/%v (%v) required: %v", req.Namespace, pod.Name, pod.GenerateName, required)
-
-	return required
-}
-
-func mapContainerImages(c *[]corev1.Container) *[]string {
-	containers := *c
-
-	var images []string
-	images = make([]string, 0)
-
-	for _, container := range containers {
-		images = append(images, container.Image)
-	}
-
-	return &images
-}
-
-func doesHostMatch(images *[]string, config *Config) bool {
-	val := *images
-
-	for _, image := range val {
-		newImage := *rewriteImage(&image, config)
-
-		if newImage != image {
-			return true
-		}
-	}
-
-	return false
-}
-
-func patchImages(pod *corev1.Pod, rewriteConfig *Config) []patchOperation {
-	var result []patchOperation
-	result = make([]patchOperation, 0)
-
-	for index, container := range pod.Spec.Containers {
-		result = append(result, patchImage(index, &container.Image, rewriteConfig))
-	}
-
-	return result
-}
-
-func patchImage(containerIndex int, image *string, config *Config) patchOperation {
-	newImage := rewriteImage(image, config)
-
-	return patchOperation{Op: "replace", Path: fmt.Sprintf("/spec/containers/%d/image", containerIndex), Value: *newImage}
-}
-
-func rewriteImage(image *string, rewriteConfig *Config) *string {
-	config := *rewriteConfig
-
-	sourceImage := *getSourceImage(image, config.DefaultHost)
-
-	for _, mapping := range config.ImageMappings {
-		if strings.HasPrefix(sourceImage, mapping.Source) {
-			newImage := strings.ReplaceAll(sourceImage, mapping.Source, mapping.Mirror)
-
-			return &newImage
-		}
-	}
-
-	return image
-}
-
-func getSourceImage(image *string, defaultHost string) *string {
-	imageParts := strings.Split(*image, "/")
-
-	host := defaultHost
-	imageRepo := *image
-
-	if len(imageParts) > 1 && strings.Contains(imageParts[0], ".") {
-		host = imageParts[0]
-
-		imageRepo = strings.Join(imageParts[1:], "/")
-	}
-
-	sourceImage := host + "/" + imageRepo
-
-	return &sourceImage
-}
-
-// create mutation patch for resoures
-func createPatch(pod *corev1.Pod, rewriteConfig *Config, annotations map[string]string) ([]byte, error) {
-	var patch []patchOperation
-
-	patch = append(patch, patchImages(pod, rewriteConfig)...)
-
-	return json.Marshal(patch)
 }
 
 // main mutation process
@@ -230,11 +98,13 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 
+	cm := configmanager.ConfigManager{Config: whsvr.rewriteConfig, IgnoredNamespaces: ignoredNamespaces}
+
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, pod.GenerateName, req.UID, req.Operation, req.UserInfo)
 
 	// determine whether to perform mutation
-	if !mutationRequired(req, &ignoredNamespaces, &pod, whsvr.rewriteConfig) {
+	if !cm.MutationRequired(req.Namespace, &pod) {
 		glog.Infof("Skipping mutation for %s/%s (%s) due to policy check", req.Namespace, pod.Name, pod.GenerateName)
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
@@ -242,8 +112,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	}
 
 	// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
-	annotations := make(map[string]string)
-	patchBytes, err := createPatch(&pod, whsvr.rewriteConfig, annotations)
+	patchBytes, err := cm.CreatePatch(&pod)
 	if err != nil {
 		return &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
