@@ -98,7 +98,7 @@ setup-kustomize: patch-ca-bundle-kustomize setup-image-kustomize
 
 setup-helm: patch-ca-bundle-helm setup-image-helm
 
-setup: setup-helm
+setup: setup-kustomize
 
 build:
 	@echo "Building the $(IMAGE_NAME) binary..."
@@ -126,7 +126,7 @@ deploy-helm:
 deploy-kustomize:
 	kustomize build kustomize/overlay | kubectl apply -f -
 
-deploy: deploy-helm
+deploy: deploy-kustomize
 
 ############################################################
 # clean section

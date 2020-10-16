@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-rewrite-webhook-config
+  namespace: image-rewrite
+data:
+  rewrite-config.yaml: |
+    defaultHost: docker.io
+    ignoredNamespaces: []
+    imageMappings: []
+     - source: docker.io/bitnami
+       mirror: us.icr.io/toolkit-private/docker/bitnami
+     - source: registry.connect.redhat.com/mongodb
+       mirror: us.icr.io/toolkit-private/redhat/mongodb
+
