@@ -1,7 +1,5 @@
 #!/bin/bash
 
-NAMESPACE="$1"
-
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -28,10 +26,4 @@ if [ -z "${CA_BUNDLE}" ]; then
     rm -rf "${TMP_DIR}"
 fi
 
-export CA_BUNDLE NAMESPACE
-
-if command -v envsubst >/dev/null 2>&1; then
-    envsubst
-else
-    sed -e "s|\${CA_BUNDLE}|${CA_BUNDLE}|g" | sed -e "s|\${NAMESPACE}|${NAMESPACE}|g"
-fi
+sed -E "s|(.*caBundle:).*|\1 ${CA_BUNDLE}|g"

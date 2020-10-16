@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-rewrite-webhook
+  namespace: image-rewrite
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+  selector:
+    app.kubernetes.io/instance: image-rewrite
+    app.kubernetes.io/name: webhook
+

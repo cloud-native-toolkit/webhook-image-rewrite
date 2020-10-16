@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: image-rewrite-webhook
+  namespace: image-rewrite
+spec:
+  template:
+    spec:
+      serviceAccountName: image-rewrite-webhook-job
+      volumes:
+        - name: cert-dir
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: image-rewrite-webhook-cert-scripts
+            defaultMode: 0777
+      initContainers:
+        - name: create-csr
+          image: ibmcloud-dev
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SERVICE
+              value: $(SERVICE)
+            - name: CERT_DIR
+              value: /opt/certs
+          command: ["/opt/bin/create-csr.sh"]
+          volumeMounts:
+            - mountPath: /opt/certs
+              name: cert-dir
+            - mountPath: /opt/bin
+              name: scripts
+        - name: approve-csr
+          image: ibmcloud-dev
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SERVICE
+              value: $(SERVICE)
+          command: ["/opt/bin/approve-csr.sh"]
+          volumeMounts:
+            - mountPath: /opt/bin
+              name: scripts
+        - name: wait-for-csr
+          image: ibmcloud-dev
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SERVICE
+              value: $(SERVICE)
+          command: ["/opt/bin/wait-for-csr.sh"]
+          volumeMounts:
+            - mountPath: /opt/bin
+              name: scripts
+      containers:
+        - name: create-cert-secret
+          image: ibmcloud-dev
+          command: ["/opt/bin/create-secret.sh"]
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SERVICE
+              value: $(SERVICE)
+            - name: SECRET_NAME
+              value: image-rewrite-webhook-certs
+            - name: CERT_DIR
+              value: /opt/certs
+          volumeMounts:
+            - mountPath: /opt/certs
+              name: cert-dir
+            - mountPath: /opt/bin
+              name: scripts
+      restartPolicy: Never
+  backoffLimit: 4

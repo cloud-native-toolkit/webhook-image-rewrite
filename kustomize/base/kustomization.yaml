@@ -1,0 +1,25 @@
+resources:
+  - cert-scripts.yaml
+  - deployment.yaml
+  - deployment-serviceaccount.yaml
+  - job.yaml
+  - job-serviceaccount.yaml
+  - rewrite-config.yaml
+  - service.yaml
+  - mutatingwebhook.yaml
+
+commonLabels:
+  app.kubernetes.io/instance: image-rewrite
+  app.kubernetes.io/name: webhook
+
+images:
+  - name: ibmcloud-dev
+    newName: ibmgaragecloud/ibmcloud-dev
+    newTag: 1.2.2
+
+vars:
+  - name: SERVICE
+    objref:
+      kind: Service
+      apiVersion: v1
+      name: image-rewrite-webhook

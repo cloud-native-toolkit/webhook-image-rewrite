@@ -32,7 +32,7 @@ else
     $(error "This system's OS $(LOCAL_OS) isn't recognized/supported")
 endif
 
-all: fmt lint test build image
+all: fmt lint test build image setup
 
 ifeq (,$(wildcard go.mod))
 ifneq ("$(realpath $(DEST))", "$(realpath $(PWD))")
@@ -66,22 +66,39 @@ test:
 # build section
 ############################################################
 
-create-signed-cert:
-	./bin/webhook-create-signed-cert.sh \
-    	--service $(IMAGE_NAME)-webhook-svc \
-    	--secret $(IMAGE_NAME)-webhook-certs \
-    	--namespace $(NAMESPACE)
+patch-ca-bundle-helm:
+	cat ./chart/image-rewrite/values.yaml | \
+		./bin/webhook-patch-ca-bundle.sh > \
+		./chart/image-rewrite/values.yaml.tmp && \
+		cp ./chart/image-rewrite/values.yaml.tmp ./chart/image-rewrite/values.yaml && \
+		rm ./chart/image-rewrite/values.yaml.tmp
 
-patch-ca-bundle:
-	cat ./deployment-template/mutatingwebhook.yaml | \
-		./bin/webhook-patch-ca-bundle.sh $(NAMESPACE) > \
-		./deployment/mutatingwebhook.yaml
+setup-image-helm:
+	cat ./chart/image-rewrite/values.yaml | \
+		./bin/setup-helm-values.sh $(IMAGE_REPO)/$(IMAGE_NAME) $(IMAGE_TAG) > \
+		./chart/image-rewrite/values.yaml.tmp && \
+		cp ./chart/image-rewrite/values.yaml.tmp ./chart/image-rewrite/values.yaml && \
+		rm ./chart/image-rewrite/values.yaml.tmp
 
-setup-kustomize:
-	cat ./deployment-template/kustomization.yaml | \
-		./bin/setup-kustomize.sh $(NAMESPACE) $(IMAGE_REPO)/$(IMAGE_NAME) $(IMAGE_TAG) > ./deployment/kustomization.yaml
+patch-ca-bundle-kustomize:
+	cat ./kustomize/overlay/patches/mutatingwebhook.yaml | \
+		./bin/webhook-patch-ca-bundle.sh > \
+		./kustomize/overlay/patches/mutatingwebhook.yaml.tmp && \
+		cp ./kustomize/overlay/patches/mutatingwebhook.yaml.tmp ./kustomize/overlay/patches/mutatingwebhook.yaml && \
+		rm ./kustomize/overlay/patches/mutatingwebhook.yaml.tmp
 
-setup: create-signed-cert patch-ca-bundle setup-kustomize
+setup-image-kustomize:
+	cat ./kustomize/overlay/kustomization.yaml | \
+		./bin/setup-kustomize.sh $(NAMESPACE) $(IMAGE_REPO)/$(IMAGE_NAME) $(IMAGE_TAG) > \
+		./kustomize/overlay/kustomization.yaml.tmp && \
+		cp ./kustomize/overlay/kustomization.yaml.tmp ./kustomize/overlay/kustomization.yaml && \
+		rm ./kustomize/overlay/kustomization.yaml.tmp
+
+setup-kustomize: patch-ca-bundle-kustomize setup-image-kustomize
+
+setup-helm: patch-ca-bundle-helm setup-image-helm
+
+setup: setup-helm
 
 build:
 	@echo "Building the $(IMAGE_NAME) binary..."
@@ -103,8 +120,13 @@ push-image: build-image
 	@docker push $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG)
 	@docker push $(IMAGE_REPO)/$(IMAGE_NAME):latest
 
-deploy:
-	kustomize build deployment/ | kubectl apply -f -
+deploy-helm:
+	helm template image-rewrite chart/image-rewrite --namespace $(NAMESPACE) | kubectl apply -n $(NAMESPACE) -f -
+
+deploy-kustomize:
+	kustomize build kustomize/overlay | kubectl apply -f -
+
+deploy: deploy-helm
 
 ############################################################
 # clean section

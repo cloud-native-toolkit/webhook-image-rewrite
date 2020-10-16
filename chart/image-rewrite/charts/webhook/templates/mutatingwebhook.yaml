@@ -1,0 +1,21 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "webhook.fullname" . }}
+  labels:
+    {{- include "webhook.labels" . | nindent 4 }}
+webhooks:
+- name: image-rewrite.toolkit.ibm
+  clientConfig:
+    service:
+      name: {{ include "webhook.fullname" . }}
+      namespace: {{ .Release.Namespace }}
+      path: "/mutate"
+    {{- if (default .Values.caBundle .Values.global.caBundle) }}
+    caBundle: {{ default .Values.caBundle .Values.global.caBundle }}
+    {{- end }}
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]

@@ -1,0 +1,12 @@
+resources:
+  - ../base
+
+patchesStrategicMerge:
+  - patches/mutatingwebhook.yaml
+
+namespace: image-rewrite
+
+images:
+  - name: image-rewrite
+    newName: docker.io/ibmgaragecloud/image-rewrite
+    newTag: 0.3.0
