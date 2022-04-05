@@ -8,7 +8,7 @@ WORKDIR /go/app
 
 RUN make build
 
-FROM alpine:latest
+FROM alpine:3.15.4
 
 # set labels for metadata
 LABEL maintainer="Morven Cao<morvencao@gmail.com>" \
